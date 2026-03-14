@@ -326,6 +326,13 @@ async function startRealtime() {
   const offer = await _pc.createOffer();
   await _pc.setLocalDescription(offer);
 
+  if (!offer?.sdp?.trim()) {
+    throw new Error("Failed to generate WebRTC offer. Please try again.");
+  }
+
+  // Bail out if the user stopped the session while we were setting up
+  if (!_pc) return;
+
   const answerSdp = await api.createRealtimeSession(offer.sdp);
   await _pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 

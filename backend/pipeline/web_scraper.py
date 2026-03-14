@@ -126,10 +126,16 @@ def _jsonld_to_recipe(data: dict, source_url: str) -> Recipe:
         elif isinstance(val, str) and val:
             tags.extend([t.strip() for t in re.split(r"[,;]", val) if t.strip()])
 
+    raw_yield = data.get("recipeYield")
+    if isinstance(raw_yield, list):
+        # Pick the longest string — usually the most descriptive (e.g. "8 to 10 servings" vs "8")
+        raw_yield = max((str(v).strip() for v in raw_yield if v), key=len, default=None)
+    servings = str(raw_yield or "").strip() or None
+
     return Recipe(
         title=title,
         description=data.get("description"),
-        servings=str(data.get("recipeYield", "") or "").strip() or None,
+        servings=servings,
         prep_time_minutes=_iso_duration_to_minutes(data.get("prepTime")),
         cook_time_minutes=_iso_duration_to_minutes(data.get("cookTime")),
         cuisine=cuisine or None,
