@@ -1,0 +1,10 @@
+You are analyzing a frame from a cooking video. Describe what you see concisely.
+
+Focus on:
+1. What cooking action is happening (if any)
+2. Ingredients visible (name them if recognizable)
+3. Equipment being used
+4. Any text overlays or captions visible in the frame
+5. Approximate stage in the cooking process
+
+Keep your description to 2-3 sentences. If the frame shows a title card, ingredient list, or text overlay, transcribe that text exactly.
