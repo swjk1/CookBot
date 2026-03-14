@@ -14,13 +14,16 @@ from pathlib import Path
 from backend.utils.logging_config import setup_logging
 from backend.utils.file_utils import create_storage_dirs
 from backend.api import routes_ingest, routes_recipe, routes_chat, routes_tts, routes_realtime
+from backend.db import database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     create_storage_dirs()
+    await database.connect()
     yield
+    await database.disconnect()
 
 
 app = FastAPI(

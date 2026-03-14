@@ -1,49 +1,55 @@
-import orjson
 import logging
-from pathlib import Path
+import orjson
 from typing import Optional
 
-from backend.config import settings
+from backend.db.database import get_pool
 from backend.models.recipe import Recipe
 
 logger = logging.getLogger(__name__)
 
 
-def _recipe_path(recipe_id: str) -> Path:
-    return settings.recipes_path / f"{recipe_id}.json"
-
-
-def save_recipe(recipe: Recipe) -> Recipe:
-    path = _recipe_path(recipe.id)
-    path.write_bytes(orjson.dumps(recipe.model_dump(mode="json"), option=orjson.OPT_INDENT_2))
+async def save_recipe(recipe: Recipe) -> Recipe:
+    pool = get_pool()
+    data = orjson.dumps(recipe.model_dump(mode="json")).decode()
+    await pool.execute(
+        """
+        INSERT INTO recipes (id, title, created_at, data)
+        VALUES ($1, $2, $3, $4::jsonb)
+        ON CONFLICT (id) DO UPDATE
+            SET title = EXCLUDED.title,
+                data  = EXCLUDED.data
+        """,
+        recipe.id, recipe.title, recipe.created_at, data,
+    )
     logger.info("Saved recipe %s (%s)", recipe.id, recipe.title)
     return recipe
 
 
-def get_recipe(recipe_id: str) -> Optional[Recipe]:
-    path = _recipe_path(recipe_id)
-    if not path.exists():
+async def get_recipe(recipe_id: str) -> Optional[Recipe]:
+    pool = get_pool()
+    row = await pool.fetchrow("SELECT data FROM recipes WHERE id = $1", recipe_id)
+    if not row:
         return None
-    data = orjson.loads(path.read_bytes())
-    return Recipe.model_validate(data)
+    return Recipe.model_validate(orjson.loads(row["data"]))
 
 
-def list_recipes() -> list[dict]:
+async def list_recipes() -> list[dict]:
+    pool = get_pool()
+    rows = await pool.fetch("SELECT data FROM recipes ORDER BY created_at DESC")
     summaries = []
-    for p in sorted(settings.recipes_path.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+    for row in rows:
         try:
-            data = orjson.loads(p.read_bytes())
-            recipe = Recipe.model_validate(data)
+            recipe = Recipe.model_validate(orjson.loads(row["data"]))
             summaries.append(recipe.summary())
         except Exception as exc:
-            logger.warning("Skipping malformed recipe %s: %s", p.name, exc)
+            logger.warning("Skipping malformed recipe: %s", exc)
     return summaries
 
 
-def delete_recipe(recipe_id: str) -> bool:
-    path = _recipe_path(recipe_id)
-    if not path.exists():
-        return False
-    path.unlink()
-    logger.info("Deleted recipe %s", recipe_id)
-    return True
+async def delete_recipe(recipe_id: str) -> bool:
+    pool = get_pool()
+    result = await pool.execute("DELETE FROM recipes WHERE id = $1", recipe_id)
+    deleted = result.split()[-1] != "0"
+    if deleted:
+        logger.info("Deleted recipe %s", recipe_id)
+    return deleted

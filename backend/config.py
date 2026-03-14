@@ -5,6 +5,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
+    database_url: str = Field(default="", env="DATABASE_URL")
     openai_model_chat: str = Field("gpt-4o-mini", env="OPENAI_MODEL_CHAT")
     openai_model_vision: str = Field("gpt-4o", env="OPENAI_MODEL_VISION")
     openai_tts_model: str = Field("tts-1", env="OPENAI_TTS_MODEL")

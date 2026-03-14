@@ -7,8 +7,6 @@ logger = logging.getLogger(__name__)
 
 def create_storage_dirs() -> None:
     dirs = [
-        settings.recipes_path,
-        settings.sessions_path,
         settings.downloads_path,
         settings.audio_cache_path,
         settings.keyframes_path,

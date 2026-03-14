@@ -1,9 +1,33 @@
-version: "3"
+version: "3.9"
 
 services:
-  cookbot-backend:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cookassist
+      POSTGRES_PASSWORD: cookassist
+      POSTGRES_DB: cookassist
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cookassist"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
     build: .
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+    environment:
+      DATABASE_URL: postgresql://cookassist:cookassist@db:5432/cookassist
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
