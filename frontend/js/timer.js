@@ -1,186 +1,138 @@
-// timer.js — countdown timer with alarm
+// timer.js — countdown timer widget
 
-let _timers = {};        // id → { total, remaining, paused, label, intervalId, lastTick }
-let _nextId = 1;
-let _audioCtx = null;
+let _totalSeconds = 0;
+let _remaining = 0;
+let _intervalId = null;
+let _paused = false;
+let _lastTick = null;
+let _activeStepText = "";
+let _isRunning = false;
 
-// ── Audio alarm ──────────────────────────────────────────────────────────────
-function getAudioCtx() {
-  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return _audioCtx;
+function el(id) { return document.getElementById(id); }
+function activeContainer() { return document.getElementById("chat-active"); }
+
+function format(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function playAlarm(label = "") {
-  const ctx = getAudioCtx();
-  // Three loud beep bursts
-  const beepAt = (t, freq = 880, dur = 0.18) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = "square";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.8, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.start(t);
-    osc.stop(t + dur + 0.01);
-  };
-
-  const now = ctx.currentTime;
-  for (let i = 0; i < 3; i++) {
-    beepAt(now + i * 0.35, 880);
-    beepAt(now + i * 0.35 + 0.2, 1100);
-  }
-
-  showAlarmBanner(label);
+function updateDisplay() {
+  el("timer-display").textContent = format(Math.max(0, Math.ceil(_remaining)));
 }
 
-function showAlarmBanner(label) {
-  let banner = document.getElementById("alarm-banner");
-  if (!banner) {
-    banner = document.createElement("div");
-    banner.id = "alarm-banner";
-    banner.className = "alarm-banner";
-    document.getElementById("app").prepend(banner);
-  }
-  banner.innerHTML = `⏰ ${label ? `<strong>${label}</strong> — ` : ""}Timer done! <button onclick="this.parentElement.remove()">Dismiss</button>`;
-  banner.classList.add("alarm-visible");
-  setTimeout(() => banner.classList.remove("alarm-visible"), 8000);
+function setStepLabel(text) {
+  el("timer-step").textContent = text || "Waiting for a timed step";
 }
 
-// ── Core timer logic ─────────────────────────────────────────────────────────
-export function startTimer(seconds, label = "") {
-  const id = _nextId++;
-  _timers[id] = {
-    id,
-    label,
-    total: seconds,
-    remaining: seconds,
-    paused: false,
-    lastTick: performance.now(),
-    intervalId: null,
-  };
-
-  _timers[id].intervalId = setInterval(() => _tick(id), 250);
-  renderTimers();
-  return id;
+function setPauseLabel() {
+  el("btn-timer-pause").textContent = _paused ? "Resume" : "Pause";
 }
 
-function _tick(id) {
-  const t = _timers[id];
-  if (!t) return;
+function syncButtons() {
+  const hasTimer = _totalSeconds > 0;
+  el("btn-timer-pause").classList.toggle("hidden", !hasTimer || !_isRunning);
+  el("btn-timer-reset").classList.toggle("hidden", !hasTimer);
+  el("btn-timer-dismiss").classList.toggle("hidden", !hasTimer);
+}
+
+function applyTimerMode() {
+  activeContainer()?.classList.toggle("timer-live", _isRunning);
+}
+
+function tick() {
   const now = performance.now();
-  if (!t.paused) {
-    t.remaining -= (now - t.lastTick) / 1000;
+  if (_lastTick !== null && !_paused) {
+    const delta = (now - _lastTick) / 1000;
+    _remaining -= delta;
   }
-  t.lastTick = now;
+  _lastTick = now;
 
-  if (t.remaining <= 0) {
-    t.remaining = 0;
-    clearInterval(t.intervalId);
-    renderTimers();
-    playAlarm(t.label);
-    // Remove from list after 4s
-    setTimeout(() => { delete _timers[id]; renderTimers(); }, 4000);
-    return;
+  updateDisplay();
+
+  if (_remaining <= 0) {
+    stopTimer();
+    el("timer-display").textContent = "Done!";
+    setStepLabel(`Timer finished: ${_activeStepText || "current step"}`);
+    document.dispatchEvent(new CustomEvent("timerDone", { detail: { stepText: _activeStepText } }));
+    syncButtons();
+    applyTimerMode();
   }
-  renderTimers();
 }
 
-function _format(seconds) {
-  const s = Math.max(0, Math.ceil(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
-  return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+export function startTimer(seconds, stepText = "") {
+  if (_intervalId) clearInterval(_intervalId);
+  _totalSeconds = seconds;
+  _remaining = seconds;
+  _paused = false;
+  _activeStepText = stepText;
+  _isRunning = false;
+  el("timer-widget").classList.remove("hidden");
+  setStepLabel(stepText || "Current timed step");
+  setPauseLabel();
+  updateDisplay();
+  _isRunning = true;
+  _lastTick = performance.now();
+  setPauseLabel();
+  syncButtons();
+  applyTimerMode();
+  _intervalId = setInterval(tick, 250);
 }
 
-export function pauseTimer(id) {
-  const t = _timers[id];
-  if (!t) return;
-  t.paused = !t.paused;
-  if (!t.paused) t.lastTick = performance.now();
-  renderTimers();
+export function stopTimer() {
+  if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
+  _isRunning = false;
+  _lastTick = null;
 }
 
-export function resetTimer(id) {
-  const t = _timers[id];
-  if (!t) return;
-  t.remaining = t.total;
-  t.paused = false;
-  t.lastTick = performance.now();
-  renderTimers();
+export function dismissTimer() {
+  stopTimer();
+  _totalSeconds = 0;
+  _remaining = 0;
+  _paused = false;
+  _activeStepText = "";
+  setPauseLabel();
+  setStepLabel("");
+  updateDisplay();
+  syncButtons();
+  applyTimerMode();
+  el("timer-widget").classList.add("hidden");
 }
 
-export function removeTimer(id) {
-  if (_timers[id]) {
-    clearInterval(_timers[id].intervalId);
-    delete _timers[id];
-  }
-  renderTimers();
+export function pauseTimer() {
+  if (!_totalSeconds || !_isRunning) return;
+  _paused = !_paused;
+  setPauseLabel();
+  if (!_paused) _lastTick = performance.now();
 }
 
-// Recalc drift on tab focus
+export function resetTimer() {
+  if (!_totalSeconds) return;
+  _remaining = _totalSeconds;
+  _paused = false;
+  _isRunning = true;
+  setPauseLabel();
+  setStepLabel(_activeStepText || "Current timed step");
+  updateDisplay();
+  _lastTick = performance.now();
+  if (_intervalId) clearInterval(_intervalId);
+  _intervalId = setInterval(tick, 250);
+  syncButtons();
+  applyTimerMode();
+}
+
+// Recalc on tab focus to avoid drift
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    Object.values(_timers).forEach(t => { if (!t.paused) t.lastTick = performance.now(); });
+  if (!document.hidden && _intervalId && !_paused) {
+    _lastTick = performance.now();
   }
 });
 
-// ── Manual timer form ────────────────────────────────────────────────────────
-export function initManualTimer() {
-  const form = document.getElementById("manual-timer-form");
-  if (!form) return;
-
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const h = parseInt(document.getElementById("timer-h").value) || 0;
-    const m = parseInt(document.getElementById("timer-m").value) || 0;
-    const s = parseInt(document.getElementById("timer-s").value) || 0;
-    const label = document.getElementById("timer-label").value.trim();
-    const total = h * 3600 + m * 60 + s;
-    if (total <= 0) return;
-
-    startTimer(total, label || "Manual timer");
-
-    // Reset form
-    document.getElementById("timer-h").value = "";
-    document.getElementById("timer-m").value = "";
-    document.getElementById("timer-s").value = "";
-    document.getElementById("timer-label").value = "";
-  });
-}
-
-// ── Render all active timers ─────────────────────────────────────────────────
-function renderTimers() {
-  const container = document.getElementById("timers-container");
-  if (!container) return;
-
-  const ids = Object.keys(_timers);
-  container.classList.toggle("hidden", ids.length === 0);
-
-  container.innerHTML = ids.map(id => {
-    const t = _timers[id];
-    const pct = Math.max(0, (t.remaining / t.total) * 100);
-    const done = t.remaining <= 0;
-    return `
-      <div class="timer-card${done ? " timer-done" : ""}">
-        <div class="timer-card-top">
-          <span class="timer-card-label">${t.label || "Timer"}</span>
-          <button class="timer-remove" onclick="window._removeTimer(${id})">✕</button>
-        </div>
-        <div class="timer-card-display">${done ? "Done! ⏰" : _format(t.remaining)}</div>
-        <div class="timer-track"><div class="timer-progress" style="width:${pct}%"></div></div>
-        <div class="timer-card-btns">
-          <button onclick="window._pauseTimer(${id})">${t.paused ? "Resume" : "Pause"}</button>
-          <button onclick="window._resetTimer(${id})">Reset</button>
-        </div>
-      </div>`;
-  }).join("");
-}
-
-// Expose to inline onclick handlers
-window._pauseTimer = pauseTimer;
-window._resetTimer = resetTimer;
-window._removeTimer = removeTimer;
+// Wire up buttons
+document.addEventListener("DOMContentLoaded", () => {
+  el("btn-timer-pause")?.addEventListener("click", pauseTimer);
+  el("btn-timer-reset")?.addEventListener("click", resetTimer);
+  el("btn-timer-dismiss")?.addEventListener("click", dismissTimer);
+});

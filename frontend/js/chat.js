@@ -1,14 +1,30 @@
 // chat.js — WebSocket chat + step management
 
-import { speak, stopTTS } from "./tts.js";
+import { speak } from "./tts.js";
 import { startTimer } from "./timer.js";
 import { highlightStep } from "./recipe.js";
-import { startVoice, stopVoice, lockMic, unlockMic, isVoiceSupported, toggleVoice } from "./voice.js";
-import { initManualTimer } from "./timer.js";
+import { emitChefState } from "./chef.js";
+import { icon } from "./icons.js";
 
 let _ws = null;
 let _sessionId = null;
 let _recipe = null;
+let _pendingTimer = null;
+
+const _READY_FOR_TIMER = [
+  "ready",
+  "i'm ready",
+  "im ready",
+  "start timer",
+  "start the timer",
+  "timer",
+  "go ahead",
+  "go",
+  "yes",
+  "it is in",
+  "it's in",
+  "its in",
+];
 
 function el(id) { return document.getElementById(id); }
 
@@ -16,20 +32,67 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function appendBubble(text, role) {
+function appendBubble(text, role, asHtml = false) {
   const msgs = el("chat-messages");
   const div = document.createElement("div");
   div.className = `chat-bubble bubble-${role}`;
-  div.textContent = text;
+  if (asHtml) {
+    div.innerHTML = text;
+  } else {
+    div.textContent = text;
+  }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function formatDuration(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (minutes) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+  if (secs && !hours) parts.push(`${secs} second${secs === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}
+
+function timerPrompt(instruction, durationSeconds) {
+  const duration = formatDuration(durationSeconds);
+  return `The next step is: ${instruction} When you're ready, say "ready" or "start timer" and I'll start the ${duration} timer.`;
+}
+
+function normalize(text) {
+  return text.trim().toLowerCase().replace(/[!?.,]/g, "");
+}
+
+function isTimerReadyIntent(text) {
+  const normalized = normalize(text);
+  return _READY_FOR_TIMER.some((phrase) => normalized === phrase || normalized.includes(phrase));
+}
+
+function maybeStartPendingTimer(text) {
+  if (!_pendingTimer || !isTimerReadyIntent(text)) return false;
+
+  appendBubble(text, "user");
+  startTimer(_pendingTimer.seconds, _pendingTimer.instruction);
+  emitChefState("loading", "Timer is live. I'll keep an eye on it.", 2200);
+
+  const reply = `Starting your ${formatDuration(_pendingTimer.seconds)} timer now.`;
+  appendBubble(reply, "bot");
+  speak(reply);
+
+  _pendingTimer = null;
+  return true;
 }
 
 function updateStepUI(payload) {
   const { step_index, step_number, total_steps, instruction, tips = [], ingredients_used = [], duration_seconds } = payload;
 
+  // Progress bar
   el("step-label").textContent = `Step ${step_number} of ${total_steps}`;
   el("progress-fill").style.width = `${(step_number / total_steps) * 100}%`;
+
+  // Step card
   el("step-instruction").textContent = instruction;
 
   const tipsEl = el("step-tips");
@@ -38,28 +101,38 @@ function updateStepUI(payload) {
   const ingEl = el("step-ingredients");
   ingEl.innerHTML = ingredients_used.map(i => `<span class="ingredient-chip">${esc(i)}</span>`).join("");
 
+  // Sidebar highlight
   highlightStep(step_index);
 }
 
-async function handleEvent(event) {
+function handleEvent(event) {
   const { type, payload } = event;
 
   if (type === "step_change") {
+    _pendingTimer = null;
     updateStepUI(payload);
-    lockMic();
-    await speak(payload.instruction);
-    unlockMic();
-    if (payload.duration_seconds) startTimer(payload.duration_seconds);
+    speak(payload.instruction);
+    if (payload.duration_seconds) {
+      _pendingTimer = {
+        seconds: payload.duration_seconds,
+        instruction: payload.instruction,
+      };
+      const prompt = timerPrompt(payload.instruction, payload.duration_seconds);
+      appendBubble(prompt, "bot");
+      emitChefState("thinking", "I can start the timer when you say ready.", 2200);
+      speak(prompt);
+    }
   } else if (type === "bot_message") {
     appendBubble(payload.content, "bot");
-    lockMic();
-    await speak(payload.content);
-    unlockMic();
+    speak(payload.content);
   } else if (type === "timer_start") {
-    startTimer(payload.duration_seconds, payload.label || "");
+    _pendingTimer = {
+      seconds: payload.duration_seconds,
+      instruction: el("step-instruction")?.textContent || "",
+    };
   } else if (type === "error") {
-    appendBubble(`⚠️ ${payload.message}`, "bot");
-    unlockMic();
+    appendBubble(`${icon("warning")} ${esc(payload.message)}`, "bot", true);
+    emitChefState("thinking", "Something went wrong there.", 1800);
   }
 }
 
@@ -67,15 +140,11 @@ export async function startCookingSession(recipe, sessionId) {
   _recipe = recipe;
   _sessionId = sessionId;
 
+  // Show chat UI
   el("chat-empty").classList.add("hidden");
   el("chat-active").classList.remove("hidden");
   el("chat-messages").innerHTML = "";
-
-  // Show mic button if voice is supported
-  const micBtn = el("btn-mic");
-  if (micBtn) {
-    micBtn.classList.toggle("hidden", !isVoiceSupported());
-  }
+  el("timer-widget").classList.add("hidden");
 
   // Connect WebSocket
   if (_ws) { _ws.close(); }
@@ -91,21 +160,17 @@ export async function startCookingSession(recipe, sessionId) {
     }
   };
 
-  _ws.onerror = () => appendBubble("Connection error. Please refresh.", "bot");
-  _ws.onclose = () => {
-    stopVoice();
-    console.log("WebSocket closed");
+  _ws.onerror = (e) => {
+    appendBubble("Connection error. Please refresh.", "bot");
   };
 
-  // Auto-start voice input when session begins
-  if (isVoiceSupported()) {
-    // Small delay so the welcome step TTS doesn't get cut off by mic starting
-    setTimeout(() => startVoice(sendMessage), 1500);
-  }
+  _ws.onclose = () => {
+    console.log("WebSocket closed");
+  };
 }
 
 export function sendMessage(text) {
-  stopTTS(); // cut off any playing TTS immediately
+  if (maybeStartPendingTimer(text)) return;
   if (!_ws || _ws.readyState !== WebSocket.OPEN) {
     console.warn("WebSocket not connected");
     return;
@@ -114,7 +179,7 @@ export function sendMessage(text) {
   _ws.send(JSON.stringify({ text }));
 }
 
-// Wire up text input
+// Wire up input
 document.addEventListener("DOMContentLoaded", () => {
   const input = el("chat-input");
   const btn = el("btn-send");
@@ -130,10 +195,22 @@ document.addEventListener("DOMContentLoaded", () => {
   input?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   });
+});
 
-  // Mic toggle button
-  el("btn-mic")?.addEventListener("click", () => toggleVoice(sendMessage));
+// Jump to step from sidebar click
+document.addEventListener("jumpToStep", (e) => {
+  if (_ws && _ws.readyState === WebSocket.OPEN) {
+    // We can't directly set step_index via WS message without backend support.
+    // For now, send "next" repeatedly or just send the step request as a message.
+    // Simple approach: tell the bot to go to that step via text.
+    // TODO: add a dedicated WS message type for step jump
+  }
+});
 
-  // Manual timer
-  initManualTimer();
+document.addEventListener("timerDone", (e) => {
+  const stepText = e.detail?.stepText ? ` for "${e.detail.stepText}"` : "";
+  const message = `Your timer is done${stepText}.`;
+  appendBubble(message, "bot");
+  emitChefState("celebrate", "Timer's done.", 2400);
+  speak(message);
 });
