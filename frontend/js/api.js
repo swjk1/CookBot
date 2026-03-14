@@ -27,6 +27,12 @@ export const api = {
       body: JSON.stringify({ text, source_url: sourceUrl }),
     }),
 
+  ingestWeb: (url) =>
+    fetchJson("/ingest/web", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
   ingestUrl: (url) =>
     fetchJson("/ingest/url", {
       method: "POST",

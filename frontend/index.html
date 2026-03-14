@@ -32,6 +32,7 @@
 
           <div class="tabs">
             <button class="tab active" data-tab="text">Paste Text</button>
+            <button class="tab" data-tab="weburl">Text URL</button>
             <button class="tab" data-tab="url">Video URL</button>
             <button class="tab" data-tab="file">Upload File</button>
           </div>
@@ -42,7 +43,13 @@
             <button id="btn-ingest-text" class="btn btn-primary">Parse Recipe</button>
           </div>
 
-          <!-- URL tab -->
+          <!-- Text URL tab -->
+          <div class="tab-content" id="tab-weburl">
+            <input type="url" id="ingest-weburl" placeholder="https://www.allrecipes.com/recipe/..." />
+            <button id="btn-ingest-weburl" class="btn btn-primary">Scrape Recipe</button>
+          </div>
+
+          <!-- Video URL tab -->
           <div class="tab-content" id="tab-url">
             <input type="text" id="ingest-url" placeholder="https://youtube.com/watch?v=..." inputmode="url" />
             <button id="btn-ingest-url" class="btn btn-primary">Process Video</button>

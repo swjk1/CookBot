@@ -40,4 +40,6 @@ Rules:
 - Convert all cooking times (e.g. "15 minutes", "1 hour 30 minutes") to duration_seconds.
 - ingredients_used should reference ingredients by name as they appear in the ingredients list.
 - tags can include meal type (breakfast, dinner), dietary (vegan, gluten-free), cooking method (baked, fried), etc.
+- Do NOT merge or deduplicate ingredients. If the source lists "wheat flour" and "refined wheat flour" as separate ingredients, keep them as two separate entries. Treat each ingredient mention as distinct unless they are explicitly the same item used at the same time in the same quantity.
+- Do NOT merge steps. If the source describes two separate actions, keep them as two steps even if they seem related.
 - Return ONLY the JSON object, no markdown, no explanation.

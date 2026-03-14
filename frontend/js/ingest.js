@@ -15,6 +15,7 @@ function showError(msg) {
 
 function setLoading(on) {
   el("btn-ingest-text").disabled = on;
+  el("btn-ingest-weburl").disabled = on;
   el("btn-ingest-url").disabled = on;
   el("btn-ingest-file").disabled = on;
   emitChefState(on ? "thinking" : "idle", on ? "Thinking through that recipe..." : "Ready when you are.");
@@ -41,6 +42,22 @@ document.addEventListener("DOMContentLoaded", () => {
       addRecipeToList(recipe);
       el("ingest-text").value = "";
       emitChefState("celebrate", "Recipe parsed and saved.", 1800);
+    } catch (e) {
+      showError(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // === Text URL (web scrape) ingest ===
+  el("btn-ingest-weburl")?.addEventListener("click", async () => {
+    const url = el("ingest-weburl").value.trim();
+    if (!url) { showError("Please enter a recipe URL."); return; }
+    setLoading(true);
+    try {
+      const recipe = await api.ingestWeb(url);
+      addRecipeToList(recipe);
+      el("ingest-weburl").value = "";
     } catch (e) {
       showError(`Error: ${e.message}`);
     } finally {

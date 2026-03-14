@@ -6,28 +6,33 @@ import { isRealtimeActive } from "./realtime.js";
 
 let _enabled = true;
 let _currentAudio = null;
+let _resolveSpeak = null;
 
 export function isTTSEnabled() { return _enabled; }
+
+export function stopTTS() {
+  if (_currentAudio) {
+    _currentAudio.pause();
+    _currentAudio = null;
+  }
+  if (_resolveSpeak) {
+    _resolveSpeak();
+    _resolveSpeak = null;
+  }
+}
 
 export function toggleTTS() {
   _enabled = !_enabled;
   const iconEl = document.querySelector("#btn-tts-toggle .icon-button");
   if (iconEl) iconEl.innerHTML = _enabled ? icons.speaker : icons.mute;
-  if (!_enabled && _currentAudio) {
-    _currentAudio.pause();
-    _currentAudio = null;
-  }
+  if (!_enabled) stopTTS();
   emitChefState("idle", _enabled ? "Voice guidance is on." : "Voice guidance is muted.", 1400);
 }
 
 export async function speak(text) {
   if (!_enabled || !text || isRealtimeActive()) return;
 
-  // Stop any playing audio
-  if (_currentAudio) {
-    _currentAudio.pause();
-    _currentAudio = null;
-  }
+  stopTTS(); // cancel any currently playing audio
 
   try {
     emitChefState("talking", "Talking through the step.");
@@ -47,17 +52,21 @@ export async function speak(text) {
     const url = URL.createObjectURL(blob);
     _currentAudio = new Audio(url);
     await new Promise((resolve) => {
+      _resolveSpeak = resolve;
       _currentAudio.onended = () => {
         URL.revokeObjectURL(url);
+        _resolveSpeak = null;
         emitChefState("idle", "Ready when you are.");
         resolve();
       };
       _currentAudio.onerror = () => {
         URL.revokeObjectURL(url);
+        _resolveSpeak = null;
         emitChefState("idle", "Ready when you are.");
         resolve();
       };
       _currentAudio.play().catch(() => {
+        _resolveSpeak = null;
         emitChefState("idle", "Ready when you are.");
         resolve();
       });

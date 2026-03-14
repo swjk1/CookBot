@@ -44,6 +44,19 @@ async def ingest_text(request: TextIngestRequest):
         raise HTTPException(status_code=500, detail=f"Parsing failed: {exc}")
 
 
+@router.post("/web", response_model=Recipe)
+async def ingest_web(request: UrlIngestRequest):
+    """Scrape a recipe from a webpage (AllRecipes, Food Network, etc.)."""
+    from backend.pipeline.web_scraper import scrape_recipe_url
+    try:
+        recipe = await scrape_recipe_url(request.url)
+        save_recipe(recipe)
+        return recipe
+    except Exception as exc:
+        logger.error("Web scrape failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Scraping failed: {exc}")
+
+
 @router.post("/url", response_model=IngestStatus)
 async def ingest_url(request: UrlIngestRequest):
     """Start async video pipeline for a URL (YouTube, etc.)."""

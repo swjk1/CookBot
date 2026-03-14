@@ -1,6 +1,6 @@
 // chat.js — WebSocket chat + step management
 
-import { speak } from "./tts.js";
+import { speak, stopTTS } from "./tts.js";
 import {
   addTime,
   dismissTimer,
@@ -279,6 +279,7 @@ export function clearCookingSessionPersistence() {
 }
 
 export function sendMessage(text) {
+  stopTTS(); // cut off any playing TTS immediately on user command
   if (maybeStartPendingTimer(text)) return;
   if (maybeHandleTimerCommand(text)) return;
   if (!_ws || _ws.readyState !== WebSocket.OPEN) {
