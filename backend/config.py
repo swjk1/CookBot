@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     openai_model_vision: str = Field("gpt-4o", env="OPENAI_MODEL_VISION")
     openai_tts_model: str = Field("tts-1", env="OPENAI_TTS_MODEL")
     openai_tts_voice: str = Field("alloy", env="OPENAI_TTS_VOICE")
+    openai_realtime_model: str = Field("gpt-4o-realtime-preview", env="OPENAI_REALTIME_MODEL")
     whisper_model: str = Field("whisper-1", env="WHISPER_MODEL")
 
     storage_base: str = Field("storage", env="STORAGE_BASE")
