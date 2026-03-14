@@ -1,35 +1,186 @@
 // chat.js — WebSocket chat + step management
 
-import { speak, stopTTS } from "./tts.js";
-import { startTimer } from "./timer.js";
+import { speak } from "./tts.js";
+import {
+  addTime,
+  dismissTimer,
+  hasActiveTimer,
+  parseTimerCommand,
+  pauseTimer,
+  resetTimer,
+  resumeTimer,
+  startTimer,
+  subtractTime,
+} from "./timer.js";
 import { highlightStep } from "./recipe.js";
-import { startVoice, stopVoice, lockMic, unlockMic, isVoiceSupported, toggleVoice } from "./voice.js";
-import { initManualTimer } from "./timer.js";
+import { emitChefState } from "./chef.js";
+import { icon } from "./icons.js";
 
 let _ws = null;
 let _sessionId = null;
 let _recipe = null;
+let _pendingTimer = null;
+const _ACTIVE_SESSION_KEY = "cookassist:activeSession";
+
+const _READY_FOR_TIMER = [
+  "ready",
+  "i'm ready",
+  "im ready",
+  "start timer",
+  "start the timer",
+  "timer",
+  "go ahead",
+  "go",
+  "yes",
+  "it is in",
+  "it's in",
+  "its in",
+];
 
 function el(id) { return document.getElementById(id); }
+function persistActiveSession() {
+  if (!_sessionId || !_recipe?.id) return;
+  localStorage.setItem(_ACTIVE_SESSION_KEY, JSON.stringify({
+    sessionId: _sessionId,
+    recipeId: _recipe.id,
+  }));
+}
+
+function clearPersistedActiveSession() {
+  localStorage.removeItem(_ACTIVE_SESSION_KEY);
+}
+
+export function getPersistedActiveSession() {
+  try {
+    return JSON.parse(localStorage.getItem(_ACTIVE_SESSION_KEY) || "null");
+  } catch (error) {
+    clearPersistedActiveSession();
+    return null;
+  }
+}
 
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function appendBubble(text, role) {
+function appendBubble(text, role, asHtml = false) {
   const msgs = el("chat-messages");
   const div = document.createElement("div");
   div.className = `chat-bubble bubble-${role}`;
-  div.textContent = text;
+  if (asHtml) {
+    div.innerHTML = text;
+  } else {
+    div.textContent = text;
+  }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function formatDuration(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (minutes) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+  if (secs && !hours) parts.push(`${secs} second${secs === 1 ? "" : "s"}`);
+  return parts.join(" ");
+}
+
+function timerPrompt(_instruction, durationSeconds) {
+  const duration = formatDuration(durationSeconds);
+  return `When you're ready, say "ready" or "start timer" and I'll start the ${duration} timer.`;
+}
+
+function normalize(text) {
+  return text.trim().toLowerCase().replace(/[!?.,]/g, "");
+}
+
+function isTimerReadyIntent(text) {
+  const normalized = normalize(text);
+  return _READY_FOR_TIMER.some((phrase) => normalized === phrase || normalized.includes(phrase));
+}
+
+function maybeStartPendingTimer(text) {
+  if (!_pendingTimer || !isTimerReadyIntent(text)) return false;
+
+  appendBubble(text, "user");
+  startTimer(_pendingTimer.seconds, _pendingTimer.instruction);
+  emitChefState("loading", "Timer is live. I'll keep an eye on it.", 2200);
+
+  const reply = `Starting your ${formatDuration(_pendingTimer.seconds)} timer now.`;
+  appendBubble(reply, "bot");
+  speak(reply);
+
+  _pendingTimer = null;
+  return true;
+}
+
+function timerReply(message, chefState = "loading") {
+  appendBubble(message, "bot");
+  emitChefState(chefState, message, 1800);
+  void speak(message);
+}
+
+function maybeHandleTimerCommand(text) {
+  const command = parseTimerCommand(text);
+  if (!command) return false;
+
+  appendBubble(text, "user");
+
+  if (command.type === "start") {
+    startTimer(command.seconds, "Manual timer");
+    timerReply(`Starting a ${formatDuration(command.seconds)} timer now.`);
+    return true;
+  }
+
+  if (!hasActiveTimer()) {
+    timerReply("There isn't an active timer right now.", "thinking");
+    return true;
+  }
+
+  if (command.type === "pause") {
+    timerReply(pauseTimer() ? "Pausing the timer." : "The timer is already paused.", "thinking");
+    return true;
+  }
+
+  if (command.type === "resume") {
+    timerReply(resumeTimer() ? "Resuming the timer." : "The timer is already running.", "loading");
+    return true;
+  }
+
+  if (command.type === "dismiss") {
+    dismissTimer();
+    timerReply("Okay, I cleared the timer.", "idle");
+    return true;
+  }
+
+  if (command.type === "reset") {
+    timerReply(resetTimer() ? "Resetting the timer." : "I couldn't reset that timer.", "loading");
+    return true;
+  }
+
+  if (command.type === "add") {
+    timerReply(addTime(command.seconds) ? `Added ${formatDuration(command.seconds)} to the timer.` : "I couldn't update the timer.", "loading");
+    return true;
+  }
+
+  if (command.type === "subtract") {
+    timerReply(subtractTime(command.seconds) ? `Taking off ${formatDuration(command.seconds)} from the timer.` : "I couldn't update the timer.", "thinking");
+    return true;
+  }
+
+  return false;
 }
 
 function updateStepUI(payload) {
   const { step_index, step_number, total_steps, instruction, tips = [], ingredients_used = [], duration_seconds } = payload;
 
+  // Progress bar
   el("step-label").textContent = `Step ${step_number} of ${total_steps}`;
   el("progress-fill").style.width = `${(step_number / total_steps) * 100}%`;
+
+  // Step card
   el("step-instruction").textContent = instruction;
 
   const tipsEl = el("step-tips");
@@ -38,44 +189,67 @@ function updateStepUI(payload) {
   const ingEl = el("step-ingredients");
   ingEl.innerHTML = ingredients_used.map(i => `<span class="ingredient-chip">${esc(i)}</span>`).join("");
 
+  // Sidebar highlight
   highlightStep(step_index);
+  document.dispatchEvent(new CustomEvent("cookingStateUpdated", {
+    detail: {
+      recipe: _recipe,
+      step_index,
+      step_number,
+      total_steps,
+      instruction,
+      tips,
+      ingredients_used,
+      duration_seconds,
+    },
+  }));
 }
 
 async function handleEvent(event) {
   const { type, payload } = event;
 
   if (type === "step_change") {
+    _pendingTimer = null;
     updateStepUI(payload);
-    lockMic();
     await speak(payload.instruction);
-    unlockMic();
-    if (payload.duration_seconds) startTimer(payload.duration_seconds);
+    if (payload.spoken_follow_up) {
+      appendBubble(payload.spoken_follow_up, "bot");
+      await speak(payload.spoken_follow_up);
+    }
+    if (payload.duration_seconds) {
+      _pendingTimer = {
+        seconds: payload.duration_seconds,
+        instruction: payload.instruction,
+      };
+      const prompt = timerPrompt(payload.instruction, payload.duration_seconds);
+      appendBubble(prompt, "bot");
+      emitChefState("thinking", "I can start the timer when you say ready.", 2200);
+      await speak(prompt);
+    }
   } else if (type === "bot_message") {
     appendBubble(payload.content, "bot");
-    lockMic();
     await speak(payload.content);
-    unlockMic();
   } else if (type === "timer_start") {
-    startTimer(payload.duration_seconds, payload.label || "");
+    _pendingTimer = {
+      seconds: payload.duration_seconds,
+      instruction: el("step-instruction")?.textContent || "",
+    };
   } else if (type === "error") {
-    appendBubble(`⚠️ ${payload.message}`, "bot");
-    unlockMic();
+    appendBubble(`${icon("warning")} ${esc(payload.message)}`, "bot", true);
+    emitChefState("thinking", "Something went wrong there.", 1800);
   }
 }
 
 export async function startCookingSession(recipe, sessionId) {
   _recipe = recipe;
   _sessionId = sessionId;
+  persistActiveSession();
 
+  // Show chat UI
   el("chat-empty").classList.add("hidden");
   el("chat-active").classList.remove("hidden");
   el("chat-messages").innerHTML = "";
-
-  // Show mic button if voice is supported
-  const micBtn = el("btn-mic");
-  if (micBtn) {
-    micBtn.classList.toggle("hidden", !isVoiceSupported());
-  }
+  el("timer-widget").classList.add("hidden");
 
   // Connect WebSocket
   if (_ws) { _ws.close(); }
@@ -85,27 +259,28 @@ export async function startCookingSession(recipe, sessionId) {
   _ws.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data);
-      handleEvent(event);
+      void handleEvent(event);
     } catch (err) {
       console.error("WS parse error:", err);
     }
   };
 
-  _ws.onerror = () => appendBubble("Connection error. Please refresh.", "bot");
-  _ws.onclose = () => {
-    stopVoice();
-    console.log("WebSocket closed");
+  _ws.onerror = (e) => {
+    appendBubble("Connection error. Please refresh.", "bot");
   };
 
-  // Auto-start voice input when session begins
-  if (isVoiceSupported()) {
-    // Small delay so the welcome step TTS doesn't get cut off by mic starting
-    setTimeout(() => startVoice(sendMessage), 1500);
-  }
+  _ws.onclose = () => {
+    console.log("WebSocket closed");
+  };
+}
+
+export function clearCookingSessionPersistence() {
+  clearPersistedActiveSession();
 }
 
 export function sendMessage(text) {
-  stopTTS(); // cut off any playing TTS immediately
+  if (maybeStartPendingTimer(text)) return;
+  if (maybeHandleTimerCommand(text)) return;
   if (!_ws || _ws.readyState !== WebSocket.OPEN) {
     console.warn("WebSocket not connected");
     return;
@@ -114,7 +289,7 @@ export function sendMessage(text) {
   _ws.send(JSON.stringify({ text }));
 }
 
-// Wire up text input
+// Wire up input
 document.addEventListener("DOMContentLoaded", () => {
   const input = el("chat-input");
   const btn = el("btn-send");
@@ -130,10 +305,25 @@ document.addEventListener("DOMContentLoaded", () => {
   input?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   });
+});
 
-  // Mic toggle button
-  el("btn-mic")?.addEventListener("click", () => toggleVoice(sendMessage));
+// Jump to step from sidebar click
+document.addEventListener("jumpToStep", (e) => {
+  if (_ws && _ws.readyState === WebSocket.OPEN) {
+    const stepNumber = Number(e.detail) + 1;
+    _ws.send(JSON.stringify({ text: `Go to step ${stepNumber}` }));
+  }
+});
 
-  // Manual timer
-  initManualTimer();
+document.addEventListener("voiceCommand", (e) => {
+  const text = e.detail?.text?.trim();
+  if (text) sendMessage(text);
+});
+
+document.addEventListener("timerDone", (e) => {
+  const stepText = e.detail?.stepText ? ` for "${e.detail.stepText}"` : "";
+  const message = `Your timer is done${stepText}.`;
+  appendBubble(message, "bot");
+  emitChefState("celebrate", "Timer's done.", 2400);
+  void speak(message);
 });

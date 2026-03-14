@@ -2,6 +2,7 @@
 
 import { api } from "./api.js";
 import { addRecipeToList } from "./recipe.js";
+import { emitChefState } from "./chef.js";
 
 function el(id) { return document.getElementById(id); }
 
@@ -13,10 +14,10 @@ function showError(msg) {
 }
 
 function setLoading(on) {
-  el("ingest-loading").classList.toggle("hidden", !on);
   el("btn-ingest-text").disabled = on;
   el("btn-ingest-url").disabled = on;
   el("btn-ingest-file").disabled = on;
+  emitChefState(on ? "thinking" : "idle", on ? "Thinking through that recipe..." : "Ready when you are.");
 }
 
 // === Tabs ===
@@ -39,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const recipe = await api.ingestText(text);
       addRecipeToList(recipe);
       el("ingest-text").value = "";
+      emitChefState("celebrate", "Recipe parsed and saved.", 1800);
     } catch (e) {
       showError(`Error: ${e.message}`);
     } finally {
@@ -72,6 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const recipe = await api.ingestFile(fileInput.files[0]);
       addRecipeToList(recipe);
       fileInput.value = "";
+      emitChefState("celebrate", "Recipe uploaded successfully.", 1800);
     } catch (e) {
       showError(`Error: ${e.message}`);
     } finally {
@@ -103,6 +106,7 @@ async function pollStatus(taskId) {
         el("ingest-url").value = "";
         statusEl.classList.add("hidden");
         setLoading(false);
+        emitChefState("celebrate", "Video recipe is ready.", 1800);
       } else if (status.status === "error") {
         showError(`Pipeline error: ${status.error}`);
         statusEl.classList.add("hidden");
