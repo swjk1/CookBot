@@ -1,0 +1,162 @@
+{
+  "title": "Cheesecake",
+  "description": null,
+  "servings": "8 servings",
+  "prep_time_minutes": 30,
+  "cook_time_minutes": 60,
+  "cuisine": null,
+  "tags": ["dessert", "baked"],
+  "ingredients": [
+    {
+      "name": "nonstick cooking spray",
+      "quantity": null,
+      "unit": null,
+      "notes": "for greasing"
+    },
+    {
+      "name": "graham cracker",
+      "quantity": "7",
+      "unit": "oz",
+      "notes": "(200 g)"
+    },
+    {
+      "name": "sugar",
+      "quantity": "2",
+      "unit": "cups",
+      "notes": "(400 g), plus 1 tablespoon, divided"
+    },
+    {
+      "name": "unsalted butter",
+      "quantity": "5",
+      "unit": "tablespoons",
+      "notes": "melted"
+    },
+    {
+      "name": "cream cheese",
+      "quantity": "32",
+      "unit": "oz",
+      "notes": "(905 g), room temperature"
+    },
+    {
+      "name": "heavy cream",
+      "quantity": "½",
+      "unit": "cup",
+      "notes": "(120 mL)"
+    },
+    {
+      "name": "sour cream",
+      "quantity": "2",
+      "unit": "cups",
+      "notes": "(460 g)"
+    },
+    {
+      "name": "all-purpose flour",
+      "quantity": "5",
+      "unit": "tablespoons",
+      "notes": null
+    },
+    {
+      "name": "kosher salt",
+      "quantity": "1",
+      "unit": "pinch",
+      "notes": null
+    },
+    {
+      "name": "vanilla bean",
+      "quantity": null,
+      "unit": null,
+      "notes": null
+    },
+    {
+      "name": "large eggs",
+      "quantity": "4",
+      "unit": null,
+      "notes": null
+    },
+    {
+      "name": "boiling water",
+      "quantity": null,
+      "unit": null,
+      "notes": "for baking"
+    },
+    {
+      "name": "mixed berry",
+      "quantity": null,
+      "unit": null,
+      "notes": "for serving"
+    }
+  ],
+  "steps": [
+    {
+      "index": 0,
+      "instruction": "Preheat the oven to 350˚F (180˚C). Grease a 10-inch (25 cm) springform pan with nonstick spray. Line the inside edges of the pan with parchment paper.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": []
+    },
+    {
+      "index": 1,
+      "instruction": "In the bowl of a food processor, combine the graham crackers, 1 tablespoon of sugar, and the melted butter. Pulse to combine until the texture is similar to wet sand.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["graham cracker", "sugar", "unsalted butter"]
+    },
+    {
+      "index": 2,
+      "instruction": "Press the graham cracker crumbs into the prepared pan, using a measuring cup to compact in even layer.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["graham cracker"]
+    },
+    {
+      "index": 3,
+      "instruction": "Bake for 8-10 minutes, until golden brown. Transfer to a wire rack and let cool to room temperature.",
+      "duration_seconds": 600,
+      "tips": [],
+      "ingredients_used": []
+    },
+    {
+      "index": 4,
+      "instruction": "Once cool, line the sides of the springform pan with parchment paper.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": []
+    },
+    {
+      "index": 5,
+      "instruction": "In a large bowl, combine the cream cheese, remaining 2 cups (400 G) of sugar, and the salt. Using an electric hand mixer, blend until well-combined and fluffy.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["cream cheese", "sugar", "kosher salt"]
+    },
+    {
+      "index": 6,
+      "instruction": "Add the heavy cream and beat to incorporate.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["heavy cream"]
+    },
+    {
+      "index": 7,
+      "instruction": "Add the sour cream, flour, salt, and vanilla bean seeds, and beat to combine.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["sour cream", "all-purpose flour", "kosher salt", "vanilla bean"]
+    },
+    {
+      "index": 8,
+      "instruction": "Add the eggs, 1 at a time, and mix until fully combined, making sure not to over-beat. The mixture should be smooth and creamy.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": ["large eggs"]
+    },
+    {
+      "index": 9,
+      "instruction": "Pour the cream cheese mixture into the cooled crust.",
+      "duration_seconds": null,
+      "tips": [],
+      "ingredients_used": []
+    },
+    {
+      "index": 10,
+      "instruction": "Wrap the outside of the springform pan tightly with foil and place the pan in a large

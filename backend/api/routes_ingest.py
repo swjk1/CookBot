@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
@@ -29,11 +30,14 @@ class UrlIngestRequest(BaseModel):
 @router.post("/text", response_model=Recipe)
 async def ingest_text(request: TextIngestRequest):
     """Parse plain recipe text and return structured Recipe JSON."""
+    request_start = time.perf_counter()
+    print("[timing] request received: POST /ingest/text")
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     try:
         recipe = await parse_recipe_text(request.text, source_url=request.source_url or "")
         save_recipe(recipe)
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
         return recipe
     except Exception as exc:
         logger.error("Text ingest failed: %s", exc)
@@ -62,6 +66,8 @@ async def get_ingest_status(task_id: str):
 @router.post("/file", response_model=Recipe)
 async def ingest_file(file: UploadFile = File(...)):
     """Upload a .txt or .pdf recipe file."""
+    request_start = time.perf_counter()
+    print("[timing] request received: POST /ingest/file")
     content_type = file.content_type or ""
     filename = file.filename or ""
 
@@ -89,6 +95,7 @@ async def ingest_file(file: UploadFile = File(...)):
     try:
         recipe = await parse_recipe_text(text, source_url=filename)
         save_recipe(recipe)
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
         return recipe
     except Exception as exc:
         logger.error("File ingest failed: %s", exc)

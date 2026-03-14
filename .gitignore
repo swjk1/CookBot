@@ -47,3 +47,7 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# extra
+*.pyc
+node_modules/

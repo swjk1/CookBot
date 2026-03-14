@@ -1,4 +1,5 @@
 import logging
+import time
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -16,6 +17,8 @@ class TTSRequest(BaseModel):
 @router.post("")
 async def text_to_speech(request: TTSRequest):
     """Convert text to speech and stream MP3 audio."""
+    request_start = time.perf_counter()
+    print("[timing] request received: POST /tts")
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     if len(request.text) > 4096:
@@ -23,6 +26,7 @@ async def text_to_speech(request: TTSRequest):
 
     try:
         stream = await synthesize_speech(request.text)
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
         return StreamingResponse(stream, media_type="audio/mpeg")
     except Exception as exc:
         logger.error("TTS failed: %s", exc)

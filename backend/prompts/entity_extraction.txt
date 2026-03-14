@@ -31,6 +31,11 @@ Return ONLY valid JSON matching this schema:
 }
 
 Rules:
+- Output exactly one JSON object.
+- Do not wrap the JSON in markdown fences.
+- Do not include commentary, prose, apologies, or any text before or after the JSON.
+- Ensure all strings are properly escaped and the JSON is syntactically valid.
+- The top-level keys `ingredients` and `steps` must always be present, even if they are empty arrays.
 - Steps must be sequential and complete. Each step should be a single, actionable instruction.
 - Convert all cooking times (e.g. "15 minutes", "1 hour 30 minutes") to duration_seconds.
 - ingredients_used should reference ingredients by name as they appear in the ingredients list.

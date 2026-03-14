@@ -1,6 +1,7 @@
 import json
 import logging
 import orjson
+import time
 from pathlib import Path
 from typing import Optional, AsyncIterator
 
@@ -104,6 +105,8 @@ async def process_message(
     user_text: str,
 ) -> AsyncIterator[dict]:
     """Process a user message and yield event dicts for the WebSocket."""
+    request_start = time.perf_counter()
+    print("[timing] request received: chat message")
 
     # 1. Check for navigation intents first (no GPT needed)
     intent = _detect_nav_intent(user_text)
@@ -131,6 +134,7 @@ async def process_message(
                     "payload": {"duration_seconds": duration, "step_index": session.current_step_index},
                 }
         yield event
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
         return
 
     # 2. Check for substitution request
@@ -145,6 +149,7 @@ async def process_message(
             session.message_history.append(ChatMessage(role="user", content=user_text))
             session.message_history.append(ChatMessage(role="assistant", content=answer))
             save_session(session)
+            print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
             return
         except Exception as exc:
             logger.warning("Substitution service error: %s", exc)
@@ -183,9 +188,11 @@ async def process_message(
             "type": "bot_message",
             "payload": {"content": answer, "step_index": session.current_step_index},
         }
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
     except Exception as exc:
         logger.error("GPT call failed: %s", exc)
         yield {
             "type": "error",
             "payload": {"message": "I had trouble thinking of a response. Please try again."},
         }
+        print(f"[timing] total response time took {time.perf_counter() - request_start:.2f}s")
