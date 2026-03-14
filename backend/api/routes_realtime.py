@@ -1,4 +1,3 @@
-import json
 import logging
 
 import httpx
@@ -19,25 +18,17 @@ async def create_realtime_session(request: Request):
     if not offer_sdp.strip():
         raise HTTPException(status_code=400, detail="SDP offer is required")
 
-    session = {
-        "type": "realtime",
-        "model": settings.openai_realtime_model,
-        "instructions": "You are a helpful cooking assistant.",
-        "audio": {
-            "output": {
-                "voice": settings.openai_realtime_voice,
-            }
-        },
-    }
-
-    # session must be a plain form field (no Content-Type header) so OpenAI's
-    # multipart parser can find the sdp field that follows it.
+    # OpenAI WebRTC Realtime API: POST raw SDP with model as query param.
+    # Session config (voice, instructions, tools) is sent separately via the
+    # WebRTC data channel after the connection is established.
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
-            "https://api.openai.com/v1/realtime/calls",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-            data={"session": json.dumps(session)},
-            files={"sdp": ("offer.sdp", offer_sdp.encode("utf-8"), "application/sdp")},
+            f"https://api.openai.com/v1/realtime?model={settings.openai_realtime_model}",
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/sdp",
+            },
+            content=offer_sdp.encode("utf-8"),
         )
 
     if response.status_code >= 400:
