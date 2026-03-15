@@ -312,8 +312,8 @@ async def process_message(
             "payload": {"content": answer, "step_index": session.current_step_index},
         }
     except Exception as exc:
-        logger.error("GPT call failed: %s", exc)
+        logger.error("GPT call failed: %s", exc, exc_info=True)
         yield {
             "type": "error",
-            "payload": {"message": "I had trouble thinking of a response. Please try again."},
+            "payload": {"message": f"GPT error: {exc}"},
         }
