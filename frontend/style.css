@@ -187,8 +187,8 @@ body {
 .tab-content { display: none; flex-direction: column; gap: 8px; }
 .tab-content.active { display: flex; }
 #ingest-panel {
-  flex: 0 0 250px;
-  min-height: 250px;
+  flex: 0 0 190px;
+  min-height: 190px;
   display: flex;
   flex-direction: column;
 }

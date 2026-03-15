@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="CookAssist API",
+    title="CookPilot API",
     description="Hands-free cooking assistant",
     version="0.1.0",
     lifespan=lifespan,

@@ -171,3 +171,12 @@ export function stopRealtimeSession() {
   _shouldKeepListening = false;
   stopListening();
 }
+
+export function enableAutoListen() {
+  _shouldKeepListening = true;
+  // Start immediately if TTS isn't currently speaking; otherwise the
+  // ttsSpeaking listener will auto-start once TTS finishes.
+  if (!_speechBlocked && !_listening) {
+    startListening();
+  }
+}

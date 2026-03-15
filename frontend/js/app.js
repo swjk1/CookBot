@@ -5,6 +5,7 @@ import { clearCookingSessionPersistence, getPersistedActiveSession, resetCooking
 import { api } from "./api.js";
 import { icons } from "./icons.js";
 import { stopSpeaking } from "./tts.js";
+import { enableAutoListen } from "./realtime.js";
 
 function el(id) { return document.getElementById(id); }
 let _activeCookingRecipeId = null;
@@ -67,6 +68,7 @@ async function init() {
       await startCookingSession(recipe, session.session_id);
       _activeCookingRecipeId = recipe.id;
       el("btn-start-cooking").textContent = "Restart Cooking";
+      enableAutoListen();
     } catch (e) {
       console.error("Failed to start session:", e);
       alert(`Could not start session: ${e.message}`);
