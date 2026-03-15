@@ -22,10 +22,10 @@ async def fetch_transcript_youtube_api(url: str) -> Optional[tuple[str, list[dic
     if not video_id:
         return None
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
-        snippets = await asyncio.to_thread(
-            YouTubeTranscriptApi.get_transcript, video_id, languages=["en", "en-US", "en-GB"]
-        )
+        from youtube_transcript_api import YouTubeTranscriptApi
+        api = YouTubeTranscriptApi()
+        fetched = await asyncio.to_thread(api.fetch, video_id, languages=["en", "en-US", "en-GB"])
+        snippets = list(fetched)
         segments = [{"start": s["start"], "end": s["start"] + s["duration"], "text": s["text"]} for s in snippets]
         transcript = " ".join(s["text"] for s in snippets)
         logger.info("Fetched transcript via youtube-transcript-api for %s (%d segments)", video_id, len(segments))
@@ -60,6 +60,7 @@ async def fetch_transcript(url: str, task_id: str) -> Optional[Path]:
         "--output", str(output_dir / "%(title)s.%(ext)s"),
         "--no-playlist",
         "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
         *_cookies_args(),
         url,
     ]
@@ -87,6 +88,7 @@ async def download_video(url: str, task_id: str) -> Path:
         "--no-playlist",
         "--max-filesize", "2G",
         "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
         *_cookies_args(),
         url,
     ]
