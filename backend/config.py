@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     whisper_model: str = Field("whisper-1", env="WHISPER_MODEL")
 
     database_url: str = Field("", env="DATABASE_URL")
+    youtube_cookies: str = Field("", env="YOUTUBE_COOKIES")
 
     storage_base: str = Field("storage", env="STORAGE_BASE")
     max_video_duration_seconds: int = Field(3600, env="MAX_VIDEO_DURATION_SECONDS")

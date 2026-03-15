@@ -1,12 +1,26 @@
 import asyncio
 import subprocess
 import logging
+import tempfile
+import os
 from pathlib import Path
 from typing import Optional
 
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _cookies_args() -> list[str]:
+    """Return --cookies flag args if YOUTUBE_COOKIES env var is set."""
+    content = settings.youtube_cookies.strip()
+    if not content:
+        return []
+    # Write cookies to a temp file yt-dlp can read
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    tmp.write(content)
+    tmp.close()
+    return ["--cookies", tmp.name]
 
 
 async def fetch_transcript(url: str, task_id: str) -> Optional[Path]:
@@ -21,7 +35,7 @@ async def fetch_transcript(url: str, task_id: str) -> Optional[Path]:
         "--sub-format", "vtt",
         "--output", str(output_dir / "%(title)s.%(ext)s"),
         "--no-playlist",
-        "--extractor-args", "youtube:player_client=tv_embedded,web",
+        *_cookies_args(),
         url,
     ]
     logger.info("Fetching transcript for: %s", url)
@@ -47,7 +61,7 @@ async def download_video(url: str, task_id: str) -> Path:
         "--output", output_template,
         "--no-playlist",
         "--max-filesize", "2G",
-        "--extractor-args", "youtube:player_client=tv_embedded,web",
+        *_cookies_args(),
         url,
     ]
 
